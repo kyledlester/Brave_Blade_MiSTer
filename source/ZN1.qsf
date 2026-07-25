@@ -238,6 +238,8 @@ set_global_assignment -name MIF_FILE rtl/pause_assets/xn_palette.mif
 set_global_assignment -name MIF_FILE rtl/pause_assets/patreon_text.mif
 set_global_assignment -name MIF_FILE rtl/pause_assets/font_8x16.mif
 set_global_assignment -name SEARCH_PATH rtl/pause_assets
+set_global_assignment -name SEARCH_PATH rtl
+set_global_assignment -name MIF_FILE rtl/fram_ff.mif
 set_global_assignment -name SDC_FILE ZN1.sdc
 set_global_assignment -name SYSTEMVERILOG_FILE ZN1.sv
 set_instance_assignment -name FAST_INPUT_REGISTER ON -to SDRAM_DQ[*]
@@ -305,3 +307,4 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SDIO_DAT[*]
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to SD_SPI*
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to USER_IO[*]
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to VGA_EN
+set_global_assignment -name SYSTEMVERILOG_FILE rtl/ddram_rotate_arb.sv

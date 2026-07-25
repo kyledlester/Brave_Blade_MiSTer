@@ -1938,6 +1938,7 @@ begin
       outdata_reg_a                 => "UNREGISTERED",
       ram_block_type                => "M10K",
       read_during_write_mode_port_a => "NEW_DATA_NO_NBE_READ",
+      init_file                     => "fram_ff.mif",  -- #291: blank FM1208S = 0xFF, not 0x00
       lpm_type                      => "altsyncram"
    )
    port map (

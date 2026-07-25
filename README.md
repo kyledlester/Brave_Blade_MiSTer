@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="art/XelaNotPu-LogoTransparent-GithubSocial.png" alt="ZN-1 MiSTer banner" width="100%">
+  <img src="art/xn_logo.png" alt="ZN-1 MiSTer banner" width="220">
 </p>
 
-# Sony ZN-1 for MiSTer — Release 2026-07-17
+# Sony ZN-1 for MiSTer — Release 2026-07-21
 
 FPGA implementation of the Sony **ZN-1** arcade board for the
 [MiSTer platform](https://github.com/MiSTer-devel/Main_MiSTer/wiki).
@@ -21,6 +21,12 @@ The core is derived from the excellent
 (FPGAzumSpass)**, which provides the CPU, GPU, GTE, DMA, and memory-subsystem
 foundation.
 
+**New in this release (2026-07-21):** **90° screen rotation (CW / CCW)** for
+vertical/TATE titles over HDMI (see *Display & pause options*), plus a
+correctness fix to the Taito FX-1B FRAM power-on state (blank FRAM now reads
+`0xFF`, matching real hardware and MAME). Both were hardware-verified without
+regressions to the playable set.
+
 ## Supported games
 | Game | Licensee / BIOS | Status |
 |---|---|---|
@@ -28,8 +34,8 @@ foundation.
 | **Aero Fighters Special** (USA) | Visco — `coh1002v` | **Playable** — attract, character select, gameplay |
 | **Logic Pro Adventure** (Japan) | Tecmo — `coh1002m` | **Playable** — full-colour title and puzzle play |
 | **1 on 1 Government** (Japan) | Tecmo — `coh1002m` | **Playable** — attract / demo play (slow first boot ~75 s while it initialises backup RAM) |
-| **Brave Blade** (World) | Raizing — `coh1002e` | **Playable** — attract, shooter gameplay |
-| **Bloody Roar** (Japan) | Raizing — `coh1002e` | **Playable** — attract ("ROARING") and gameplay |
+| **Brave Blade** (World) | Raizing — `coh1002e` | **Playable** — attract, shooter gameplay; **sound effects only, no music** (see Known issues) |
+| **Bloody Roar** (Japan) | Raizing — `coh1002e` | **Playable** — attract ("ROARING") and gameplay; SFX only, no music |
 | **G-Darius Ver.2** (2.03J) | Taito FX-1B — `coh1002t` | **Playable** — attract and gameplay; **sound effects only, no music** (see Known issues) |
 | **G-Darius** (2.01J) | Taito FX-1B — `coh1002t` | **Playable** — attract and gameplay; SFX only |
 | **G-Darius** (2.02O) | Taito FX-1B — `coh1002t` | **Playable** — full attract (new in this release: bank-register bit fix); SFX only |
@@ -62,7 +68,7 @@ this release (not yet implemented).
 ## Contents
 
 ```
-RELEASE-20260717/
+RELEASE-20260721/
 ├── README.md
 ├── release/                       ← copy onto your MiSTer SD card
 │   └── _Arcade/
@@ -70,7 +76,7 @@ RELEASE-20260717/
 │       ├── _alternatives/
 │       │   └── _<Game>/           ← regional / revision alternates
 │       └── cores/
-│           └── ZN1_20260717.rbf   ← the FPGA core bitstream
+│           └── ZN1_20260721.rbf   ← the FPGA core bitstream
 ├── source/                        ← full FPGA core source (build it yourself)
 │   ├── art/  rtl/  sys/  mra/  pause_src/
 │   ├── ZN1.qpf  ZN1.qsf  ZN1.sdc  ZN1.sv  files.qip
@@ -114,11 +120,21 @@ the parent, so a merged parent zip satisfies every alternate of that game.
 
 ## Display & pause options
 
-The OSD (P1 → Video & Audio) exposes a **Rotate** screen-flip and a **Pause
-Screen** orientation (Horizontal / Vertical). For vertical (TATE) titles such as
-Brave Blade, set **Pause Screen = Vertical** so the pause overlay's logo and
-credits read in the same orientation as the game; the **Rotate** toggle then
-selects which way (90° / 270°). Horizontal titles are unaffected.
+**90° screen rotation (new this release).** The OSD exposes a **Rotation:
+None / CW / CCW** option that rotates vertical/TATE titles (Brave Blade, Aero
+Fighters, Raizing shooters) 90° so they display upright on a landscape HDMI
+screen — the standard MiSTer arcade-rotation mechanism (a DDR frame buffer via
+`screen_rotate`, sharing the DDR3 bridge with PSX VRAM). Pick **CW** or **CCW**
+to match how you'd mount a rotated monitor; **None** leaves the picture
+unchanged (bit-identical to a non-rotating build). The aspect ratio is swapped
+automatically so the portrait image letterboxes correctly. Verified on hardware
+with Brave Blade and Aero Fighters (both directions, in motion).
+
+The OSD also exposes a **Rotate** 180° screen-flip and a **Pause Screen**
+orientation (Horizontal / Vertical) — for a physically-rotated (non-digital)
+TATE setup, set **Pause Screen = Vertical** so the pause overlay reads in the
+game's orientation. These compose with the 90° Rotation. Horizontal titles are
+unaffected by any of these.
 
 ## Known issues
 
@@ -128,6 +144,9 @@ selects which way (90° / 270°). Horizontal titles are unaffected.
 - **No music on Taito FX-1 titles.** The Taito Zoom / MN10200 sound
   co-processor is not emulated; G-Darius, Ray Storm, etc. play **sound effects
   only**. This is expected in this release.
+- **No music on Raizing/Eighting titles** (Brave Blade, Bloody Roar). Their
+  external M68000 + **YMF271** sound board is not emulated; sound effects (from
+  the PSX SPU) play, but music does not. Expected in this release.
 - *(Fixed in this release)* **Ray Storm**'s "ROM R-3 ERROR" is resolved — a
   leftover diagnostic in earlier cores overwrote 32 bytes of banked ROM after
   loading. The game now passes its self-test; first boot lands in its
