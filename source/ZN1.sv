@@ -200,12 +200,27 @@ wire [11:0] DisplayHeight;
 wire [ 9:0] DisplayOffsetX;
 wire [ 8:0] DisplayOffsetY;
 
-assign FB_BASE    = status[11] ? 32'h30000000 : {8'h30, frameindex, DisplayOffsetY, DisplayOffsetX, 1'b0};
-assign FB_EN      = (status[14] || video_fbmode);
-assign FB_FORMAT  = (status[10] || video_fb24) ? 5'b00101 : 5'b01100;
-assign FB_WIDTH   = status[11] ? 12'd1024 : DisplayWidth;
-assign FB_HEIGHT  = status[11] ? 12'd512  : DisplayHeight;
-assign FB_STRIDE  = 14'd2048;
+// 90-degree screen rotation control (OSD "Rotation": 0=None 1=CW 2=CCW).
+wire [1:0] rot_mode = status[13:12];
+wire       rot_en   = (rot_mode == 2'd1) || (rot_mode == 2'd2);
+wire       rot_ccw  = (rot_mode == 2'd2);
+
+// Framebuffer outputs of sys/screen_rotate.v (instantiated in the VIDEO section).
+// When rotation is active they drive the HPS framebuffer scanout (FB path);
+// otherwise the FB_* pins keep their original meaning bit-for-bit.
+wire        sr_fb_en;
+wire  [4:0] sr_fb_format;
+wire [11:0] sr_fb_width;
+wire [11:0] sr_fb_height;
+wire [31:0] sr_fb_base;
+wire [13:0] sr_fb_stride;
+
+assign FB_BASE    = rot_en ? sr_fb_base   : (status[11] ? 32'h30000000 : {8'h30, frameindex, DisplayOffsetY, DisplayOffsetX, 1'b0});
+assign FB_EN      = rot_en ? sr_fb_en     : (status[14] || video_fbmode);
+assign FB_FORMAT  = rot_en ? sr_fb_format : ((status[10] || video_fb24) ? 5'b00101 : 5'b01100);
+assign FB_WIDTH   = rot_en ? sr_fb_width  : (status[11] ? 12'd1024 : DisplayWidth);
+assign FB_HEIGHT  = rot_en ? sr_fb_height : (status[11] ? 12'd512  : DisplayHeight);
+assign FB_STRIDE  = rot_en ? sr_fb_stride : 14'd2048;
 assign FB_FORCE_BLANK = 0;
 
 
@@ -364,6 +379,7 @@ parameter CONF_STR = {
 	"P1O[89],Render 480i as 480p,Off,On;",
 	"P1O[60],Sync 480i for HDMI,Off,On;",
 	"P1O[24],Rotate,Off,On;",
+	"P1O[13:12],Rotation,None,CW,CCW;",
 	"P1O[25],Pause Screen,Horizontal,Vertical;",
 	"P1-;",
 	"P1O[22],Dithering,On,Off;",
@@ -1067,16 +1083,16 @@ psx
    .dma_wr(dma_wr),
    .dma_reqprocessed(dma_reqprocessed),
    .dma_data(dma_data),
-   // vram/ddr3
-   .DDRAM_BUSY      (DDRAM_BUSY      ),
-   .DDRAM_BURSTCNT  (DDRAM_BURSTCNT  ),
-   .DDRAM_ADDR      (DDRAM_ADDR      ),
-   .DDRAM_DOUT      (DDRAM_DOUT      ),
-   .DDRAM_DOUT_READY(DDRAM_DOUT_READY),
-   .DDRAM_RD        (DDRAM_RD        ),
-   .DDRAM_DIN       (DDRAM_DIN       ),
-   .DDRAM_BE        (DDRAM_BE        ),
-   .DDRAM_WE        (DDRAM_WE        ),
+   // vram/ddr3 (routed through the rotation arbiter, see ddram_rotate_arb)
+   .DDRAM_BUSY      (psx_ddram_busy      ),
+   .DDRAM_BURSTCNT  (psx_ddram_burstcnt  ),
+   .DDRAM_ADDR      (psx_ddram_addr      ),
+   .DDRAM_DOUT      (psx_ddram_dout      ),
+   .DDRAM_DOUT_READY(psx_ddram_dout_ready),
+   .DDRAM_RD        (psx_ddram_rd        ),
+   .DDRAM_DIN       (psx_ddram_din       ),
+   .DDRAM_BE        (psx_ddram_be        ),
+   .DDRAM_WE        (psx_ddram_we        ),
    // cd (unused in ZN)
    .region          (2'b01),    // JP
    .region_out      (region_out),
@@ -1559,6 +1575,57 @@ assign sdram_writeack2 = '0;
 
 assign DDRAM_CLK = clk_2x;
 
+// ---- DDR3 bridge sharing: PSX VRAM (priority) + screen_rotate frame buffer ----
+// psx_top drives these instead of the top-level DDRAM_* pins directly; the
+// arbiter muxes them with the screen_rotate write master onto the real pins.
+wire  [7:0] psx_ddram_burstcnt;
+wire [28:0] psx_ddram_addr;
+wire [63:0] psx_ddram_dout;
+wire        psx_ddram_dout_ready;
+wire        psx_ddram_rd;
+wire [63:0] psx_ddram_din;
+wire  [7:0] psx_ddram_be;
+wire        psx_ddram_we;
+wire        psx_ddram_busy;
+
+// screen_rotate write master (write-only, single-beat, region 0x24000000).
+wire        sr_ddram_we;
+wire        sr_ddram_rd;      // unused (screen_rotate never reads)
+wire [28:0] sr_ddram_addr;
+wire [63:0] sr_ddram_din;
+wire  [7:0] sr_ddram_be;
+wire  [7:0] sr_ddram_burstcnt;
+
+ddram_rotate_arb ddram_rotate_arb
+(
+	.clk             (clk_2x),
+
+	.DDRAM_BUSY      (DDRAM_BUSY      ),
+	.DDRAM_BURSTCNT  (DDRAM_BURSTCNT  ),
+	.DDRAM_ADDR      (DDRAM_ADDR      ),
+	.DDRAM_DOUT      (DDRAM_DOUT      ),
+	.DDRAM_DOUT_READY(DDRAM_DOUT_READY),
+	.DDRAM_RD        (DDRAM_RD        ),
+	.DDRAM_DIN       (DDRAM_DIN       ),
+	.DDRAM_BE        (DDRAM_BE        ),
+	.DDRAM_WE        (DDRAM_WE        ),
+
+	.p_burstcnt      (psx_ddram_burstcnt  ),
+	.p_addr          (psx_ddram_addr      ),
+	.p_dout          (psx_ddram_dout      ),
+	.p_dout_ready    (psx_ddram_dout_ready),
+	.p_rd            (psx_ddram_rd        ),
+	.p_din           (psx_ddram_din       ),
+	.p_be            (psx_ddram_be        ),
+	.p_we            (psx_ddram_we        ),
+	.p_busy          (psx_ddram_busy      ),
+
+	.r_we            (sr_ddram_we   ),
+	.r_addr          (sr_ddram_addr ),
+	.r_din           (sr_ddram_din  ),
+	.r_be            (sr_ddram_be   )
+);
+
 ////////////////////////////  VIDEO  ////////////////////////////////////
 
 assign CLK_VIDEO = clk_vid;
@@ -1581,7 +1648,9 @@ reg  [255:0] dbg_loadwords = 256'd0;
 wire [7:0] dbg_word_bitidx = dbg_vpix[4:2]*8'd32 + (8'd31 - {3'b0, dbg_hpix[7:3]});
 wire       dbg_word_bit    = dbg_loadwords[dbg_word_bitidx];
 
-wire hack_480p = status[89];
+// Force progressive (480p) rendering while rotating: screen_rotate captures a
+// whole frame into DDR, so interlaced fields would alternate half-height frames.
+wire hack_480p = status[89] | rot_en;
 
 typedef struct {
 	logic [7:0] red;
@@ -1609,14 +1678,21 @@ assign VGA_SL = 0;
 logic [11:0] aspect_x, aspect_y;
 
 wire [1:0] ar = status[33:32];
+// Base (unrotated) aspect. When the image is digitally rotated 90 degrees it
+// becomes portrait, so in auto-AR mode (ar==0) swap ARX/ARY to letterbox on a
+// landscape screen. User-forced AR (ar!=0, incl. Full Screen where ARY=0) is
+// left untouched so those modes still behave as chosen.
+wire [11:0] arx_base = (status[54:53] == 1) ? 12'd3 : (status[54:53] == 2) ? 12'd5 : (status[54:53] == 3) ? 12'd16 : status[11] ? 12'd2 : aspect_x;
+wire [11:0] ary_base = (status[54:53] == 1) ? 12'd2 : (status[54:53] == 2) ? 12'd3 : (status[54:53] == 3) ? 12'd9  : status[11] ? 12'd1 : aspect_y;
+wire        ar_swap  = rot_en & ~(|ar);
 video_freak video_freak
 (
 	.*,
 	.VGA_DE_IN(VGA_DE),
 	.VGA_DE(),
 
-	.ARX((!ar) ? ((status[54:53] == 1) ? 3 : (status[54:53] == 2) ? 5 : (status[54:53] == 3) ? 16 : status[11] ? 12'd2 : aspect_x) : (ar - 1'd1)),
-	.ARY((!ar) ? ((status[54:53] == 1) ? 2 : (status[54:53] == 2) ? 3 : (status[54:53] == 3) ?  9 : status[11] ? 12'd1 : aspect_y) : 12'd0),
+	.ARX((!ar) ? (ar_swap ? ary_base : arx_base) : (ar - 1'd1)),
+	.ARY((!ar) ? (ar_swap ? arx_base : ary_base) : 12'd0),
 	.CROP_SIZE(0),
 	.CROP_OFF(0),
 	.SCALE(status[35:34])
@@ -1795,8 +1871,11 @@ pause_overlay u_pause_overlay (
 	.hblank      (video_aspect.hb),
 	.vblank      (video_aspect.vb),
 	.enable      (button_paused),
-	.rotate180   (status[24]),
-	.vertical    (status[25]),
+	// When digital 90-degree rotation is active the overlay must be authored
+	// upright in source space - screen_rotate turns the whole frame (overlay
+	// included). Legacy Pause-H/V + 180 apply only when not digitally rotating.
+	.rotate180   (rot_en ? 1'b0 : status[24]),
+	.vertical    (rot_en ? 1'b0 : status[25]),
 	.vid_r_in    (video_aspect.red),
 	.vid_g_in    (video_aspect.green),
 	.vid_b_in    (video_aspect.blue),
@@ -1827,6 +1906,61 @@ gamma_corr gamma(
 	.HBlank_out(video_gamma.hb),
 	.VBlank_out(video_gamma.vb),
 	.RGB_out({video_gamma.red,video_gamma.green,video_gamma.blue})
+);
+
+//////////////////////////  SCREEN ROTATE  //////////////////////////////
+// Standard MiSTer sys/screen_rotate.v (in sys/arcade_video.v): captures the
+// live post-gamma raster into a DDR frame buffer at 0x24000000 (transposed) and
+// drives the HPS framebuffer scanout (FB_*), giving a true 90-degree rotation.
+//
+// screen_rotate runs in the clk_2x (DDRAM) domain so its write master is native
+// to the DDR bridge - no async FIFO/CDC needed on the write side. The only cross
+// from the pixel (clk_vid) domain is the CE_PIXEL enable; the RGB/HS/VS/DE data
+// is held stable between pixel enables, so we synchronize just the enable and
+// re-pulse it in clk_2x. clk_2x (~2x system clock) is far faster than the pixel
+// clock, so every 1-clk_vid CE_PIXEL pulse is safely captured.
+reg cep_s1, cep_s2, cep_s3;
+always @(posedge clk_2x) begin
+	cep_s1 <= CE_PIXEL;
+	cep_s2 <= cep_s1;
+	cep_s3 <= cep_s2;
+end
+wire ce_pix_2x = cep_s2 & ~cep_s3;   // rising edge -> single clk_2x pulse
+
+screen_rotate u_screen_rotate
+(
+	.CLK_VIDEO   (clk_2x),
+	.CE_PIXEL    (ce_pix_2x),
+
+	.VGA_R       (VGA_R),
+	.VGA_G       (VGA_G),
+	.VGA_B       (VGA_B),
+	.VGA_HS      (VGA_HS),
+	.VGA_VS      (VGA_VS),
+	.VGA_DE      (VGA_DE),
+
+	.rotate_ccw  (rot_ccw),
+	.no_rotate   (~rot_en),
+	.flip        (1'b0),
+	.video_rotated(),
+
+	.FB_EN       (sr_fb_en),
+	.FB_FORMAT   (sr_fb_format),
+	.FB_WIDTH    (sr_fb_width),
+	.FB_HEIGHT   (sr_fb_height),
+	.FB_BASE     (sr_fb_base),
+	.FB_STRIDE   (sr_fb_stride),
+	.FB_VBL      (FB_VBL),
+	.FB_LL       (FB_LL),
+
+	.DDRAM_CLK   (),                 // uses clk_2x internally; pins driven by arbiter
+	.DDRAM_BUSY  (1'b0),             // screen_rotate ignores busy; arbiter handles it
+	.DDRAM_BURSTCNT(sr_ddram_burstcnt),
+	.DDRAM_ADDR  (sr_ddram_addr),
+	.DDRAM_DIN   (sr_ddram_din),
+	.DDRAM_BE    (sr_ddram_be),
+	.DDRAM_WE    (sr_ddram_we),
+	.DDRAM_RD    (sr_ddram_rd)
 );
 
 
