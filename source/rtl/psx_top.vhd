@@ -263,6 +263,10 @@ entity psx_top is
       zn_cat702_key   : in  std_logic_vector(63 downto 0);
       zn_cat702_key_b : in  std_logic_vector(63 downto 0);
       zn_platform     : in  std_logic_vector(3 downto 0) := "0000";
+      -- Raizing/Eighting sound board: PSX writes to 0x1FB00000 (latch) / 0x1FB00004 (IRQ2)
+      zn_snd_latch_wr : out std_logic := '0';
+      zn_snd_irq_wr   : out std_logic := '0';
+      zn_snd_data     : out std_logic_vector(7 downto 0) := (others => '0');
       -- EEPROM preload (MRA ioctl index 9) -> zn1_io EEPROM BRAM
       zn_ee_dl_wr     : in  std_logic := '0';
       zn_ee_dl_addr   : in  std_logic_vector(8 downto 0) := (others => '0');
@@ -3490,6 +3494,9 @@ begin
 
       zn_platform          => zn_platform,
       dbg_zn_bank          => dbg_zn_bank_sig,   -- B-inst5
+      zn_snd_latch_wr      => zn_snd_latch_wr,
+      zn_snd_irq_wr        => zn_snd_irq_wr,
+      zn_snd_data          => zn_snd_data,
 
       spu_memctrl          => spu_memctrl, 
       bus_spu_addr         => bus_spu_addr,     

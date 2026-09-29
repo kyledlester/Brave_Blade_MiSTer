@@ -186,7 +186,7 @@ assign {UART_RTS, UART_TXD, UART_DTR} = 0;
 assign AUDIO_S   = 1;
 assign AUDIO_MIX = status[8:7];
 
-assign LED_USER  = bios_download | fixedrom_download | bankedrom_download;
+assign LED_USER  = bios_download | fixedrom_download | bankedrom_download | sndprog_download | sndsmp_download;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS   = 0;
@@ -565,19 +565,39 @@ hps_ext hps_ext
 //   0x0400000-0x047FFFF: BIOS       (512KB) — ioctl_index 0, CPU 0x1FC00000
 //   0x0480000-0x06FFFFF: Fixed ROM  (2.5MB) — ioctl_index 2, CPU 0x1F000000
 //   0x0800000-0x3FFFFFF: Banked ROM (up to 56MB, 7 banks×8MB) — ioctl_index 3, CPU 0x1F000000
+//   Raizing sound board (Brave Blade), placed in the otherwise unused banked-ROM bank 2
+//   (the game only selects banks 0 and 1):
+//   0x1800000-0x18FFFFF: 68000 program (1MB interleaved, 512KB used) — ioctl_index 6
+//   0x1C00000-0x1FFFFFF: YMF271 sample ROM (4MB)                     — ioctl_index 7
 localparam BIOS_START      = 27'h0400000;
 localparam FIXEDROM_START  = 27'h0480000;
 localparam BANKEDROM_START = 27'h0800000;
+localparam SNDPROG_START   = 27'h1800000;
+localparam SNDSMP_START    = 27'h1C00000;
 
 reg bios_download, fixedrom_download, bankedrom_download, code_download;
 reg eeprom_download;
+reg sndprog_download, sndsmp_download;
 always @(posedge clk_1x) begin
 	bios_download       <= ioctl_download & (ioctl_index[5:0] == 0);
 	fixedrom_download   <= ioctl_download & (ioctl_index == 2);
 	bankedrom_download  <= ioctl_download & (ioctl_index == 3);
+	sndprog_download    <= ioctl_download & (ioctl_index == 6);
+	sndsmp_download     <= ioctl_download & (ioctl_index == 7);
 	eeprom_download     <= ioctl_download & (ioctl_index == 9);   // AT28C16 EEPROM preload -> zn1_io
 	code_download       <= ioctl_download & (ioctl_index == 255);
 end
+
+// Raizing sound board is enabled only when the MRA supplied both of its ROMs
+// (platform alone is not enough: several Raizing titles have no sound-ROM parts yet).
+reg snd_prog_loaded = 0, snd_smp_loaded = 0;
+always @(posedge clk_1x) begin
+	if (bios_download) begin snd_prog_loaded <= 0; snd_smp_loaded <= 0; end
+	if (sndprog_download) snd_prog_loaded <= 1;
+	if (sndsmp_download)  snd_smp_loaded  <= 1;
+end
+wire snd_enable = snd_prog_loaded & snd_smp_loaded & (zn_platform_r[3:0] == 4'd1);
+wire rom_download = bios_download | fixedrom_download | bankedrom_download | sndprog_download | sndsmp_download;
 
 // EEPROM preload writer (MRA index 9). 16-bit ioctl_dout carries 2 bytes (little-endian:
 // ioctl_dout[7:0]=even byte, [15:8]=odd byte). Pack into the correct 16-bit lane of the
@@ -703,6 +723,10 @@ wire        ramdownload_wr_pre = ioctl_wr & ioctl_addr[1];
 wire [15:0] dl_wr_lo16 = ramdownload_wrdata[15:0];
 wire [15:0] dl_wr_hi16 = ioctl_dout;
 
+// JTAG debug instruments (ISSP probes, SDRAM logic analyzer) are only built with
+// `define ZN_JTAG_DEBUG (e.g. VERILOG_MACRO "ZN_JTAG_DEBUG=1"); they cost ~400 ALMs
+// that the Raizing sound board needs.
+`ifdef ZN_JTAG_DEBUG
 altsource_probe #(
 	.sld_auto_instance_index ("YES"),
 	.sld_instance_index      (0),
@@ -717,10 +741,11 @@ altsource_probe #(
 	.source_clk (clk_1x),
 	.source_ena (1'b1)
 );
+`endif
 
 always @(posedge clk_1x) begin
    ramdownload_wr <= 0;
-   if (bios_download | fixedrom_download | bankedrom_download) begin
+   if (rom_download) begin
       if (ioctl_wr) begin
          if (~ioctl_addr[1]) begin
             ramdownload_wrdata[15:0] <= ioctl_dout;
@@ -730,6 +755,10 @@ always @(posedge clk_1x) begin
             else if (fixedrom_download)
                // Fixed ROM: SDRAM 0x480000 base (addition to handle overlapping bits)
                ramdownload_wraddr <= FIXEDROM_START[26:0] + {4'b0000, ioctl_addr[22:0]};
+            else if (sndprog_download)
+               ramdownload_wraddr <= SNDPROG_START + {7'd0, ioctl_addr[19:0]};
+            else if (sndsmp_download)
+               ramdownload_wraddr <= SNDSMP_START + {5'd0, ioctl_addr[21:0]};
             else
                // Banked ROM: SDRAM 0x800000 base, 24 banks × 1MB = 24MB
                ramdownload_wraddr <= BANKEDROM_START[26:0] + ioctl_addr[26:0];
@@ -996,6 +1025,16 @@ end
 
 ////////////////////////////  SYSTEM  ///////////////////////////////////
 
+// Raizing sound board connections (instance below, after the PSX core)
+wire [15:0] spu_l, spu_r;
+wire        zn_snd_latch_wr, zn_snd_irq_wr;
+wire  [7:0] zn_snd_data;
+wire        snd_mem_req;
+wire [26:0] snd_mem_addr;
+wire [127:0] sdram_ch3_dout128;
+wire signed [15:0] ymf_l, ymf_r;
+wire [63:0] snd_dbg;
+
 psx_mister
 psx
 (
@@ -1250,8 +1289,8 @@ psx
    .snacMC(status[66]),
 
    //sound
-	.sound_out_left(AUDIO_L),
-	.sound_out_right(AUDIO_R),
+	.sound_out_left(spu_l),
+	.sound_out_right(spu_r),
    //savestates
    .increaseSSHeaderCount (!status[36]),
    .save_state            (ss_save),
@@ -1274,7 +1313,7 @@ psx
    .Cheats_BusWriteData(cheats_dout),
    .Cheats_Bus_ena(cheats_ena),
    .Cheats_BusReadData(cheats_din),
-   .Cheats_BusDone(sdramCh3_done),
+   .Cheats_BusDone(sdramCh3_done & ~snd_enable),
 
    // ZN-1 Arcade I/O
    .zn_p1_right   (joy[0]),
@@ -1299,6 +1338,9 @@ psx
    .zn_cat702_key  (zn_cat702_key_a),
    .zn_cat702_key_b(zn_cat702_key_b_r),
    .zn_platform    (zn_platform_r[3:0]),
+   .zn_snd_latch_wr(zn_snd_latch_wr),
+   .zn_snd_irq_wr  (zn_snd_irq_wr),
+   .zn_snd_data    (zn_snd_data),
    .zn_ee_dl_wr    (zn_ee_dl_wr),
    .zn_ee_dl_addr  (zn_ee_dl_addr),
    .zn_ee_dl_data  (zn_ee_dl_data),
@@ -1308,6 +1350,49 @@ psx
    .zn_debug_addr  (zn_debug_addr),
    .zn_debug_words (zn_debug_words)
 );
+
+/////////////////////  RAIZING SOUND BOARD (68000 + YMF271)  /////////////////////
+
+raizing_snd raizing_snd
+(
+	.clk       (clk_1x),
+	.reset     (reset),
+	.enable    (snd_enable),
+	.pause     (isPaused),
+	.latch_wr  (zn_snd_latch_wr),
+	.latch_din (zn_snd_data),
+	.irq_wr    (zn_snd_irq_wr),
+	.mem_req   (snd_mem_req),
+	.mem_addr  (snd_mem_addr),
+	.mem_ack   (sdramCh3_done & snd_enable & ~rom_download),
+	.mem_data  (sdram_ch3_dout128),
+	.out_l     (ymf_l),
+	.out_r     (ymf_r),
+	.dbg       (snd_dbg),
+	.dbg_ymf_wr(), .dbg_ymf_addr(), .dbg_ymf_data(), .dbg_sample(), .dbg_bus(), .dbg_bstate()
+);
+
+// Output mix. MAME routes the PSX SPU at 0.35 and the YMF271 at 1.0 (full scale =
+// YMF mix/4, which ymf_l/ymf_r already are). Keep that balance with +6 dB overall:
+// SPU * 45/64 (0.703) + YMF * 2, saturated. Without the sound board the SPU passes
+// through unchanged.
+function automatic [15:0] snd_mix(input [15:0] spu, input [15:0] ymf);
+	reg signed [22:0] v;
+	begin
+		reg signed [22:0] s;
+		s = $signed({{7{spu[15]}}, spu});
+		v = (((s <<< 5) + (s <<< 3) + (s <<< 2) + s) >>> 6) + ($signed({{7{ymf[15]}}, ymf}) <<< 1);   // spu*45/64 + ymf*2
+		snd_mix = (v > 23'sd32767) ? 16'h7FFF : (v < -23'sd32768) ? 16'h8000 : v[15:0];
+	end
+endfunction
+
+reg [15:0] audio_l_r, audio_r_r;
+always @(posedge clk_1x) begin
+	audio_l_r <= snd_enable ? snd_mix(spu_l, ymf_l) : spu_l;
+	audio_r_r <= snd_enable ? snd_mix(spu_r, ymf_r) : spu_r;
+end
+assign AUDIO_L = audio_l_r;
+assign AUDIO_R = audio_r_r;
 
 ////////////////////////////  MEMORY  ///////////////////////////////////
 
@@ -1410,12 +1495,15 @@ sdram sdram
 	.ch2_be   (sdram_be),
 	.ch2_ready(sdram_writeack),
 
-	.ch3_addr ((bios_download | fixedrom_download | bankedrom_download) ? ramdownload_wraddr : {6'b0, cheats_addr}),
-	.ch3_din  ((bios_download | fixedrom_download | bankedrom_download) ? ramdownload_wrdata : cheats_dout),
+	// ch3: ROM download writes, else the Raizing sound board (128-bit line reads), else cheats
+	.ch3_addr (rom_download ? ramdownload_wraddr : snd_enable ? snd_mem_addr : {6'b0, cheats_addr}),
+	.ch3_din  (rom_download ? ramdownload_wrdata : cheats_dout),
 	.ch3_dout (cheats_din),
-	.ch3_req  ((bios_download | fixedrom_download | bankedrom_download) ? ramdownload_wr     : cheats_ena),
-	.ch3_rnw  ((bios_download | fixedrom_download | bankedrom_download) ? 1'b0 : cheats_rnw),
-	.ch3_be   ((bios_download | fixedrom_download | bankedrom_download) ? 4'b1111            : cheats_be),
+	.ch3_req  (rom_download ? ramdownload_wr     : snd_enable ? snd_mem_req  : cheats_ena),
+	.ch3_rnw  (rom_download ? 1'b0 : snd_enable ? 1'b1 : cheats_rnw),
+	.ch3_be   (rom_download ? 4'b1111            : snd_enable ? 4'b1111      : cheats_be),
+	.ch3_128  (~rom_download & snd_enable),
+	.ch3_dout128(sdram_ch3_dout128),
 	.ch3_ready(sdramCh3_done),
 
 	.dmafifo_adr  (sdram_dmafifo_adr),
@@ -1443,6 +1531,7 @@ wire        la_trig = sdram_req & sdram_rnw & (sdram_addr == la_trig_addr);
 wire [46:0] la_sample = { la_trig, sdram_dbg_state, sdram_dbg_drd1, SDRAM_A, SDRAM_DQ };
 
 wire [12:0] la_src;          // [8:0]=rdaddr, [9]=arm, [10]=pm_force_on, [11]=jtag_reset, [12]=trig 0x42C
+`ifdef ZN_JTAG_DEBUG
 wire [46:0] la_rddata;
 wire        la_frozen;
 wire [8:0]  la_wptr;
@@ -1492,6 +1581,9 @@ altsource_probe #(
 	.source_clk (clk_3x),
 	.source_ena (1'b1)
 );
+`else
+assign la_src = 13'd0;
+`endif
 // (probe_width raised 160 -> 256 for B-inst5; readout scripts detect length)
 // ================================================================================================
 
@@ -1554,6 +1646,8 @@ sdram sdram2
 	.ch3_dout(),
 	.ch3_req(1'b0),
 	.ch3_rnw(1'b1),
+	.ch3_128(1'b0),
+	.ch3_dout128(),
 	.ch3_ready(),
 
 	.dmafifo_adr  (0),

@@ -1,5 +1,5 @@
 <misterromdescription>
-	<name>Brave Blade (World)</name>
+	<name>Brave Blade (with music)</name>
 	<setname>brvblade</setname>
 	<year>2000</year>
 	<manufacturer>Eighting / Raizing</manufacturer>
@@ -7,7 +7,7 @@
 	<players>2</players>
 	<joystick>8-way</joystick>
 	<rotation>vertical</rotation>
-	<rbf>XNZN1</rbf>
+	<rbf>BraveBlade</rbf>
 
 	<!-- BIOS: Tecmo TPS System BIOS (used by brvblade), 512KB, ioctl_index 0 -->
 	<rom index="0" zip="coh1002m.zip" md5="none">

@@ -142,6 +142,11 @@ entity memorymux is
       zn_platform          : in  std_logic_vector(3 downto 0) := "0000";
       -- B-inst5: live bank register readout for the JTAG instrument (BR2 bank-2 probe)
       dbg_zn_bank          : out std_logic_vector(2 downto 0) := (others => '0');
+      -- Raizing/Eighting sound board (MAME raizing_zn_state): one-clock pulses on
+      -- PSX writes to 0x1FB00000 (8-bit sound latch) and 0x1FB00004 (68000 IRQ2)
+      zn_snd_latch_wr      : out std_logic := '0';
+      zn_snd_irq_wr        : out std_logic := '0';
+      zn_snd_data          : out std_logic_vector(7 downto 0) := (others => '0');
 
       spu_memctrl          : in  unsigned(13 downto 0);
       bus_spu_addr         : out unsigned(9 downto 0) := (others => '0'); 
@@ -377,6 +382,9 @@ architecture arch of memorymux is
 
    signal addressData_buf        : unsigned(31 downto 0);
    signal dataWrite_buf          : std_logic_vector(31 downto 0);
+   -- Raizing sound latch/IRQ: decoded in IDLE, issued from BUSWRITE with the registered data
+   signal zn_snd_pend            : std_logic := '0';
+   signal zn_snd_pend_irq        : std_logic := '0';
    signal reqsize_buf            : unsigned(1 downto 0);   
    signal writeMask_buf          : std_logic_vector(3 downto 0);
             
@@ -716,6 +724,8 @@ begin
          mem_done_buf         <= '0';
          reset_exe            <= '0';
          fram_wren            <= '0';   -- Taito FRAM write is a 1-cycle pulse from IDLE
+         zn_snd_latch_wr      <= '0';
+         zn_snd_irq_wr        <= '0';
 
          if (loadExe = '1') then
             loadExe_latched <= '1';
@@ -740,6 +750,7 @@ begin
             ext_lastactive   <= '0';
             zn_bank_reg      <= (others => '0');
             zn_bank_8mb      <= (others => '0');
+            zn_snd_pend      <= '0';
             rom_buf_valid    <= '0';
             pal_read_pending      <= '0';   -- build #47
             redrow_read_pending   <= '0';   -- build #47
@@ -1084,6 +1095,13 @@ begin
                               zn_bank_8mb <= "0" & mem_dataWrite(17 downto 16);
                               rom_buf_valid <= '0';
                               state       <= BUSWRITE;
+                           elsif (mem_rnw = '0' and zn_platform = "0001" and
+                                  mem_addressData(28 downto 0) >= 16#1FB00000# and mem_addressData(28 downto 0) < 16#1FB00008#) then
+                              -- Raizing/Eighting sound board: 0x1FB00000 = sound latch (data bits 7:0),
+                              -- 0x1FB00004 = assert 68000 IRQ2. Brave Blade writes both as halfwords.
+                              zn_snd_pend     <= '1';
+                              zn_snd_pend_irq <= mem_addressData(2);
+                              state           <= BUSWRITE;
                            elsif (mem_rnw = '0' and zn_platform = "0100" and
                                   (mem_addressData(28 downto 0) = 16#1FB00006# or
                                    mem_addressData(28 downto 0) = 16#1FB00004#)) then
@@ -1328,6 +1346,15 @@ begin
 
                when BUSWRITE =>
                   state        <= IDLE;
+                  if (zn_snd_pend = '1') then
+                     zn_snd_pend <= '0';
+                     if (zn_snd_pend_irq = '1') then
+                        zn_snd_irq_wr   <= '1';
+                     else
+                        zn_snd_latch_wr <= '1';
+                        zn_snd_data     <= dataWrite_buf(7 downto 0);
+                     end if;
+                  end if;
 
                when BUSREAD_CDSTUB =>
                   mem_dataRead_buf <= x"FFFFFFFF";

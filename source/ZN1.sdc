@@ -14,3 +14,7 @@ set_false_path -from {emu|pll2|pll2_inst|altera_pll_i|cyclonev_pll|counter[0].ou
 set_false_path -from {emu|pll2|pll2_inst|altera_pll_i|cyclonev_pll|counter[0].output_counter|divclk} -to {pll_hdmi|pll_hdmi_inst|altera_pll_i|cyclonev_pll|counter[0].output_counter|divclk}
 set_false_path -from {emu|pll2|pll2_inst|altera_pll_i|cyclonev_pll|counter[0].output_counter|divclk} -to {sysmem|fpga_interfaces|clocks_resets|h2f_user0_clk}
 set_false_path -from {emu|pll2|pll2_inst|altera_pll_i|cyclonev_pll|counter[0].output_counter|divclk} -to {FPGA_CLK1_50}
+
+# Raizing sound board: the 128-bit SDRAM channel-3 read line (clk_3x) is only sampled by the
+# sound board (clk_1x) after ch3_ready, and it cannot change until the next request is issued.
+set_false_path -from [get_registers {*|sdram:sdram|ch3_dout128[*]}] -to [get_registers {*|raizing_snd:raizing_snd|*}]
