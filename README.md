@@ -19,7 +19,7 @@ Brave_Blade_MiSTer/
 ├── Releases/
 │   └── BraveBlade_20260930.rbf        ← the core
 ├── MRA/
-│   ├── Brave Blade (with music).mra          (World)
+│   ├── Brave Blade (World) (with music).mra
 │   ├── Brave Blade (USA) (with music).mra
 │   ├── Brave Blade (Japan) (with music).mra
 │   └── Brave Blade (Asia) (with music).mra
@@ -36,7 +36,7 @@ upstream [ZN1_MiSTer](https://github.com/XelaNotPu/ZN1_MiSTer) core.
 2. Copy the `.mra` files from `MRA/` to `_Arcade/` (or any folder under it).
 3. Put your ROM zips in the MiSTer arcade ROM folder (`games/mame/` or
    `_Arcade/mame/`).
-4. Pick **Brave Blade (with music)** from the arcade menu.
+4. Pick **Brave Blade (World) (with music)** (or a regional version) from the arcade menu.
 
 The MRAs load the core named `BraveBlade`; MiSTer uses the newest dated
 `BraveBlade_*.rbf` in `_Arcade/cores/`.
@@ -63,7 +63,7 @@ only in a small region EEPROM, which the regional MRAs load.
 
 | MRA | Status |
 |---|---|
-| Brave Blade (with music) — World | Tested on MiSTer hardware with `BraveBlade_20260930.rbf`: music and sound effects |
+| Brave Blade (World) (with music) | Tested on MiSTer hardware with `BraveBlade_20260930.rbf`: music and sound effects |
 | Brave Blade (USA / Japan / Asia) (with music) | Not yet tested on hardware (same core and ROMs as World, plus the region EEPROM) |
 
 ## How the music was added
