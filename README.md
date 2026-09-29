@@ -10,7 +10,7 @@ core did not implement. This fork adds that sound board to the FPGA core, so
 Brave Blade plays its music and its sound effects together.
 
 Everything else about the core is XelaNotPu's work, which in turn builds on
-Robert Peip's PSX_MiSTer core. See [Credits](#credits).
+Robert Peip's PSX_MiSTer core. See [Credits](#credits). Next steps are to test all ZN-1 games and send a pull request to XelaNotPu for the entire core, but I am providing this individually for now.
 
 ## What's in this repository
 
