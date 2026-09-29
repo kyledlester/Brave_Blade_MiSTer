@@ -1,13 +1,14 @@
 <misterromdescription>
-	<name>Brave Blade (World)</name>
-	<setname>brvblade</setname>
+	<name>Brave Blade (Japan) (with music)</name>
+	<setname>brvbladej</setname>
 	<year>2000</year>
 	<manufacturer>Eighting / Raizing</manufacturer>
 	<category>Shooter</category>
 	<players>2</players>
 	<joystick>8-way</joystick>
 	<rotation>vertical</rotation>
-	<rbf>XNZN1</rbf>
+	<region>Japan</region>
+	<rbf>BraveBlade</rbf>
 
 	<!-- BIOS: Tecmo TPS System BIOS (used by brvblade), 512KB, ioctl_index 0 -->
 	<rom index="0" zip="coh1002m.zip" md5="none">
@@ -24,7 +25,7 @@
 	<!-- Bank 0: flash0 (2MB) + flash1 (2MB) + 4MB empty                        -->
 	<!-- Bank 1: rom1 (4MB) + 4MB empty                                         -->
 	<!-- Bank 2 (never selected by the game) holds the sound ROMs below         -->
-	<rom index="3" zip="brvblade.zip" md5="none">
+	<rom index="3" zip="brvbladej.zip|brvblade.zip" md5="none">
 		<part name="flash0.021" crc="97e12c63"/>
 		<part name="flash1.024" crc="d9d40a34"/>
 		<part repeat="0x400000">00</part>
@@ -35,7 +36,7 @@
 	<!-- Raizing sound board: 68000 program, ioctl_index 6 (SDRAM 0x1800000).
 	     MAME ROM_LOAD16_BYTE: spu0u049 = even bytes, spu1u412 = odd bytes.
 	     (spu* are sound-CPU program ROMs, not PlayStation SPU data.) -->
-	<rom index="6" zip="brvblade.zip" md5="none">
+	<rom index="6" zip="brvbladej.zip|brvblade.zip" md5="none">
 		<interleave output="16">
 			<part name="spu0u049.bin" crc="c9df8ed9" map="01"/>
 			<part name="spu1u412.bin" crc="6408b5b2" map="10"/>
@@ -43,7 +44,7 @@
 	</rom>
 
 	<!-- Raizing sound board: YMF271 sample ROM, ioctl_index 7 (SDRAM 0x1C00000) -->
-	<rom index="7" zip="brvblade.zip" md5="none">
+	<rom index="7" zip="brvbladej.zip|brvblade.zip" md5="none">
 		<part name="ra-bbl_rom2.336" crc="cd052c02"/>
 	</rom>
 
@@ -53,8 +54,13 @@
 	</rom>
 
 	<!-- CAT702 key B: game key (mg11), 8 bytes, ioctl_index 5 -->
-	<rom index="5" zip="brvblade.zip" md5="none">
+	<rom index="5" zip="brvbladej.zip|brvblade.zip" md5="none">
 		<part name="mg11" crc="56d917de"/>
+	</rom>
+
+	<!-- Region EEPROM (AT28C16, the only difference between the Brave Blade sets), ioctl_index 9 -->
+	<rom index="9" zip="brvbladej.zip|brvblade.zip" md5="none">
+		<part name="at28c16_japan" crc="59e2d326"/>
 	</rom>
 
 	<!-- DIP switches map to zn_dsw via ~status[103:96] (base=96, 1 byte; ZN1.sv inverts).
