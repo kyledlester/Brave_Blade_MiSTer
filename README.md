@@ -1,186 +1,210 @@
-<p align="center">
-  <img src="art/XelaNotPu-LogoTransparent-GithubSocial.png" alt="ZN-1 MiSTer banner" width="100%">
-</p>
+# Brave Blade (with music) for MiSTer
 
-# Sony ZN-1 for MiSTer — Release 2026-07-21
+A fork of **[XelaNotPu's ZN-1 core for MiSTer](https://github.com/XelaNotPu/ZN1_MiSTer)**
+made for one purpose: to play **Brave Blade** (Eighting / Raizing, 2000) with its
+**original music**.
 
-FPGA implementation of the Sony **ZN-1** arcade board for the
-[MiSTer platform](https://github.com/MiSTer-devel/Main_MiSTer/wiki).
+The upstream ZN-1 core runs Brave Blade, but only with sound effects. On the
+real arcade board the music comes from a second sound system that the ZN-1
+core did not implement. This fork adds that sound board to the FPGA core, so
+Brave Blade plays its music and its sound effects together.
 
-The ZN-1 (1995) is a PlayStation-based arcade platform: an R3000A-compatible
-MIPS CPU, a PSX-type GPU (CXD8561) with 2 MB VRAM, and main RAM — paired with
-ZN-specific hardware that has no consumer-PlayStation equivalent: a
-per-manufacturer boot ROM in place of a PS1 kernel, banked game ROM in place of
-a CD drive, **CAT702** challenge/response security chips, per-manufacturer
-NVRAM/EEPROM, and manufacturer sound and I/O sub-boards. This core implements
-the ZN-1 base hardware and the boot ROMs, security and banking for five of the
-board's licensees: **Visco, Tecmo, Taito (FX-1), Atlus, and Raizing/Eighting**.
+Everything else about the core is XelaNotPu's work, which in turn builds on
+Robert Peip's PSX_MiSTer core. See [Credits](#credits).
 
-The core is derived from the excellent
-[PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer) core by **Robert Peip
-(FPGAzumSpass)**, which provides the CPU, GPU, GTE, DMA, and memory-subsystem
-foundation.
-
-**New in this release (2026-07-21):** **90° screen rotation (CW / CCW)** for
-vertical/TATE titles over HDMI (see *Display & pause options*), plus a
-correctness fix to the Taito FX-1B FRAM power-on state (blank FRAM now reads
-`0xFF`, matching real hardware and MAME). Both were hardware-verified without
-regressions to the playable set.
-
-## Supported games
-| Game | Licensee / BIOS | Status |
-|---|---|---|
-| **Dead or Alive ++** (Japan/USA Export) | Tecmo — `coh1002m` | **Playable** — full-colour attract, character roster, and in-game all render correctly (headline title) |
-| **Aero Fighters Special** (USA) | Visco — `coh1002v` | **Playable** — attract, character select, gameplay |
-| **Logic Pro Adventure** (Japan) | Tecmo — `coh1002m` | **Playable** — full-colour title and puzzle play |
-| **1 on 1 Government** (Japan) | Tecmo — `coh1002m` | **Playable** — attract / demo play (slow first boot ~75 s while it initialises backup RAM) |
-| **Brave Blade** (World) | Raizing — `coh1002e` | **Playable** — attract, shooter gameplay; **sound effects only, no music** (see Known issues) |
-| **Bloody Roar** (Japan) | Raizing — `coh1002e` | **Playable** — attract ("ROARING") and gameplay; SFX only, no music |
-| **G-Darius Ver.2** (2.03J) | Taito FX-1B — `coh1002t` | **Playable** — attract and gameplay; **sound effects only, no music** (see Known issues) |
-| **G-Darius** (2.01J) | Taito FX-1B — `coh1002t` | **Playable** — attract and gameplay; SFX only |
-| **G-Darius** (2.02O) | Taito FX-1B — `coh1002t` | **Playable** — full attract (new in this release: bank-register bit fix); SFX only |
-| **Psychic Force** (2.4O) | Taito FX-1A — `coh1000t` | **Playable** — full attract; SFX only |
-| **Monster Farm Jump** (Japan) | Tecmo — `coh1002m` | **Playable** — full attract, ranking, gameplay demo (new in this release) |
-| **Tondemo Crisis** (Japan) | Tecmo — `coh1002m` | **Playable** — 3D attract, in-game scenes, title (new in this release) |
-| **Tecmo World Cup Millennium** (Japan) | Tecmo — `coh1002m` | **Playable** — 3D lineup, live demo match, stadium attract (new in this release) |
-| **Gallop Racer 2** (Japan/Export) | Tecmo — `coh1002m` | **Playable** — records, live 3D racing attract (new in this release) |
-| **Gallop Racer 3** (Japan/Export) | Tecmo — `coh1002m` | **Playable** — paddock, live 3D racing, rankings (new in this release) |
-| **Shanghai Matekibuyuu** (Japan) | Tecmo — `coh1002m` | **Playable** — attract and gameplay |
-| **The Block Kuzushi** (Japan) | Tecmo — `coh1002m` | **Playable** — attract and gameplay |
-| **Flame Gunner** (Export) | Tecmo — `coh1002m` | **Playable** — attract and gameplay |
-| **Sonic Wings Limited** (Japan) | Visco — `coh1002v` | **Playable** — attract and gameplay |
-| **Super Football Champ** (2.5O) | Taito FX-1A — `coh1000t` | Boots to test/config menu (first-boot NVRAM init) |
-| **Fighters' Impact** (2.02O) | Taito FX-1B — `coh1002t` | Boots — if the OSD "Test Mode" is on, the game shows its service menu (leave it via the menu's EXIT item or a core Reset; toggling Test Mode off alone doesn't exit) |
-| **Magical Date** (2.02J) | Taito FX-1A — `coh1000t` | Boots — FX-1A EEPROM path (shared with Psychic Force) |
-| **Ray Storm** (2.06A) | Taito FX-1B — `coh1002t` | **Boots** — ROM self-test now passes (fixed in this release); first boot lands in the setup/test menu (settings don't persist yet — FRAM is volatile); SFX only |
-| **Bloody Roar 2** (World) | Raizing — `coh1002e` | **Not yet** — EEPROM gate fixed this release (MRA preload); engine now runs at 60 fps but its asset loader stalls partway, before the title (under investigation) |
-| **Heaven's Gate** (Atlus) | Atlus — `coh1001l` | **Not yet** — passes BIOS security, uploads assets, then freezes before first render (GPU/DMA completion path, under investigation) |
-
-**Full romset coverage**: every ZN-1 romset supported by these five licensees
-has an MRA in this release — one primary per game in `_Arcade/`, with
-regional/revision alternates under `_Arcade/_alternatives/_<Game>/`. The
-alternates are generated from the ROM definitions and, unless noted above, have
-**not** each been individually boot-tested.
-
-Capcom ZN-1 (`coh1000c`), Psikyo, and other licensees are **out of scope** for
-this release (not yet implemented).
-
-## Contents
+## What's in this repository
 
 ```
-RELEASE-20260721/
-├── README.md
-├── release/                       ← copy onto your MiSTer SD card
-│   └── _Arcade/
-│       ├── <one primary .mra per game>
-│       ├── _alternatives/
-│       │   └── _<Game>/           ← regional / revision alternates
-│       └── cores/
-│           └── ZN1_20260721.rbf   ← the FPGA core bitstream
-├── source/                        ← full FPGA core source (build it yourself)
-│   ├── art/  rtl/  sys/  mra/  pause_src/
-│   ├── ZN1.qpf  ZN1.qsf  ZN1.sdc  ZN1.sv  files.qip
-│   └── LICENSE  COPYING.GPL2  COPYING.GPL3
-└── art/                           ← README artwork
+Brave_Blade_MiSTer/
+├── Releases/
+│   └── BraveBlade_20260930.rbf        ← the core
+├── MRA/
+│   ├── Brave Blade (with music).mra          (World)
+│   ├── Brave Blade (USA) (with music).mra
+│   ├── Brave Blade (Japan) (with music).mra
+│   └── Brave Blade (Asia) (with music).mra
+└── source/                            ← full core source and Quartus project
 ```
+
+This repository only supports Brave Blade. For the other ZN-1 games, use the
+upstream [ZN1_MiSTer](https://github.com/XelaNotPu/ZN1_MiSTer) core.
 
 ## Installation
 
-1. Copy `release/_Arcade/` to the `_Arcade/` folder on your MiSTer SD card
-   (merging with what is already there).
-2. Place your own ROM zips in the MiSTer arcade ROM location
-   (`games/mame/` or `_Arcade/mame/`).
-3. Select a game from the arcade menu.
+1. Copy `Releases/BraveBlade_20260930.rbf` to `_Arcade/cores/` on your MiSTer
+   SD card.
+2. Copy the `.mra` files from `MRA/` to `_Arcade/` (or any folder under it).
+3. Put your ROM zips in the MiSTer arcade ROM folder (`games/mame/` or
+   `_Arcade/mame/`).
+4. Pick **Brave Blade (with music)** from the arcade menu.
 
-The `.mra` files reference the core as `ZN1`; MiSTer picks the newest dated
-`ZN1_*.rbf` in `_Arcade/cores/`.
+The MRAs load the core named `BraveBlade`; MiSTer uses the newest dated
+`BraveBlade_*.rbf` in `_Arcade/cores/`.
 
-## Hardware requirements
+A standard MiSTer with a **32 MB SDRAM module** is enough.
 
-A standard MiSTer with a **32 MB SDRAM module** is sufficient. ZN-1 banked game
-ROM is staged in SDRAM; the largest sets (32 MB banked ROM) fit within a 32 MB
-module.
+## ROMs required
 
-## ROM zips required
+No ROMs are included. You need, as MAME romsets:
 
-No ROMs are included. Each MRA references MAME romsets by zip name, and every
-game also needs its **manufacturer boot-ROM zip**, loaded at runtime:
+| Zip | Used for |
+|---|---|
+| `coh1002m.zip` | Tecmo TPS BIOS (`m534002c-61.ic353`) and motherboard security key (`mg01.ic652`) |
+| `brvblade.zip` | Game ROMs, security key, and the sound board ROMs: `spu0u049.bin` + `spu1u412.bin` (68000 sound program) and `ra-bbl_rom2.336` (YMF271 samples) |
+| `brvbladeu.zip` / `brvbladej.zip` / `brvbladea.zip` | Only for the USA / Japan / Asia MRAs: the region EEPROM (`at28c16_usa` / `_japan` / `_asia`) |
 
-| Licensee | Boot-ROM zip | Example games |
-|---|---|---|
-| Tecmo | `coh1002m.zip` | Dead or Alive ++, Logic Pro Adventure, 1 on 1 Government |
-| Visco | `coh1002v.zip` | Aero Fighters Special, Sonic Wings Limited |
-| Taito FX-1A | `coh1000t.zip` | Psychic Force, Super Football Champ, Magical Date |
-| Taito FX-1B/1Z | `coh1002t.zip` | G-Darius, Ray Storm, Fighters' Impact |
-| Atlus | `coh1001l.zip` | Heaven's Gate |
-| Raizing / Eighting | `coh1002e.zip` | Brave Blade, Bloody Roar, Bloody Roar 2 |
+Despite their names, the `spu*` files are the sound CPU's program, not
+PlayStation SPU data.
 
-Alternates: each alternate MRA declares its own clone zip with a fallback to
-the parent, so a merged parent zip satisfies every alternate of that game.
+The four Brave Blade sets share every game and sound ROM. In MAME they differ
+only in a small region EEPROM, which the regional MRAs load.
 
-## Display & pause options
+## Status
 
-**90° screen rotation (new this release).** The OSD exposes a **Rotation:
-None / CW / CCW** option that rotates vertical/TATE titles (Brave Blade, Aero
-Fighters, Raizing shooters) 90° so they display upright on a landscape HDMI
-screen — the standard MiSTer arcade-rotation mechanism (a DDR frame buffer via
-`screen_rotate`, sharing the DDR3 bridge with PSX VRAM). Pick **CW** or **CCW**
-to match how you'd mount a rotated monitor; **None** leaves the picture
-unchanged (bit-identical to a non-rotating build). The aspect ratio is swapped
-automatically so the portrait image letterboxes correctly. Verified on hardware
-with Brave Blade and Aero Fighters (both directions, in motion).
+| MRA | Status |
+|---|---|
+| Brave Blade (with music) — World | Tested on MiSTer hardware with `BraveBlade_20260930.rbf`: music and sound effects |
+| Brave Blade (USA / Japan / Asia) (with music) | Not yet tested on hardware (same core and ROMs as World, plus the region EEPROM) |
 
-The OSD also exposes a **Rotate** 180° screen-flip and a **Pause Screen**
-orientation (Horizontal / Vertical) — for a physically-rotated (non-digital)
-TATE setup, set **Pause Screen = Vertical** so the pause overlay reads in the
-game's orientation. These compose with the 90° Rotation. Horizontal titles are
-unaffected by any of these.
+## How the music was added
 
-## Known issues
+### The missing hardware
 
-- **Vertical pause-screen centering.** With Pause Screen = Vertical the overlay
-  reads in the correct orientation, but its logo/text centering is not yet
-  pixel-perfect on every resolution — a cosmetic refinement for a later build.
-- **No music on Taito FX-1 titles.** The Taito Zoom / MN10200 sound
-  co-processor is not emulated; G-Darius, Ray Storm, etc. play **sound effects
-  only**. This is expected in this release.
-- **No music on Raizing/Eighting titles** (Brave Blade, Bloody Roar). Their
-  external M68000 + **YMF271** sound board is not emulated; sound effects (from
-  the PSX SPU) play, but music does not. Expected in this release.
-- *(Fixed in this release)* **Ray Storm**'s "ROM R-3 ERROR" is resolved — a
-  leftover diagnostic in earlier cores overwrote 32 bytes of banked ROM after
-  loading. The game now passes its self-test; first boot lands in its
-  setup/test menu (exit it with the controller; settings don't yet persist
-  across power cycles because the FRAM is volatile in this release).
-- **Bloody Roar 2** no longer hangs at the BIOS colour bars (its EEPROM now
-  preloads with valid contents). Its engine now runs — but the asset loader
-  stalls partway through, before the title screen (the original Bloody Roar
-  works; investigation continues).
-- **Heaven's Gate** passes the BIOS and loads its assets but freezes before
-  drawing its first frame (a GPU/DMA completion wait; it is the only ZN-1
-  title using the 368-pixel-wide display mode — under investigation).
-- *(Fixed in this release)* The former Tecmo boot-stall group — Monster Farm
-  Jump, Tondemo Crisis, Tecmo World Cup Millennium, Gallop Racer 2 — now boots
-  and plays: the core delivers the SIO0 completion interrupt with real-hardware
-  latency at the fast baud these games' security drivers use.
-- *(Fixed in this release)* The `2.02O` G-Darius freeze-after-asset-load is
-  resolved (the core decoded a spurious bit of the Taito bank register that
-  only 2.02O sets).
-- **First boot can be slow** (~75 s) for titles that initialise backup
-  RAM/EEPROM on a blank NVRAM; subsequent boots are faster.
+Brave Blade runs on Raizing's ZN-1 board (PS9805). Next to the PlayStation
+hardware it carries its own sound board:
+
+- a **Motorola 68000** at 12 MHz running its own sound program,
+- a **Yamaha YMF271-F "OPX"** sound chip at 16.9344 MHz, with a 4 MB sample ROM,
+- an 8-bit **command latch** that the game's main (PSX) CPU writes to, plus an
+  interrupt line into the 68000.
+
+The game's main CPU never plays music itself. It sends one-byte commands to the
+sound board, and the sound board's 68000 drives the YMF271. MAME emulates this
+board in `src/mame/sony/zn.cpp` (`raizing_zn_state`) and
+`src/devices/sound/ymf271.cpp`. Those were the reference for this work.
+
+### 1. Measuring the real behaviour in MAME
+
+Before writing any hardware, the board was traced in MAME 0.289 with Lua
+scripts (`source/sim/mame/`), recording 150 seconds of boot, attract mode,
+coin-up, start and gameplay:
+
+- **Command interface.** The game writes a command as a halfword to
+  `0x1FB00000`, then writes `0x1FB00004` to interrupt the 68000 (IRQ level 2,
+  held until acknowledged). The 68000 reads the command from `0x180008` about
+  17 µs later. 23 commands were seen in the capture; for example, `08` starts
+  the attract music.
+- **Sound program.** 512 KB of program ROM and only 16 KB of RAM are actually
+  used. The program writes YMF271 registers through a busy-poll routine and
+  keeps musical tempo by polling the YMF271's two timers.
+- **YMF271 features actually used.** Nine 4-operator FM voices (sine wave,
+  algorithms 3/6/12 with feedback), twelve 8-bit PCM voices, both timers, and
+  the "sample ended" status flags. Every register write was logged, giving an
+  exact stimulus to test against.
+- **ROM layout.** The MRA's byte stream for the 68000 program (two ROMs
+  interleaved) and the sample ROM were checked byte-for-byte against MAME's own
+  copies (matching SHA-1).
+
+### 2. A reference model first
+
+- MAME's YMF271 was ported to a standalone C++ program
+  (`source/sim/model/ymf_mame.h`) that replays the captured register writes. Its
+  output matches MAME's own recording (correlation 0.998).
+- A second, fixed-point model (`ymf_fx.h`) was written with the same structure
+  the hardware would have: integer arithmetic only, lookup tables generated
+  from MAME's formulas, and one sample computed per 44.1 kHz tick. It matches
+  the MAME port on 99.98 % of samples.
+
+### 3. The hardware (`source/rtl/raizing_snd/`)
+
+- **68000:** Jorge Cwik's cycle-exact [fx68k](https://github.com/ijor/fx68k),
+  imported unchanged, clocked at an average 12 MHz from the core clock.
+- **Sound board glue:** the command latch and interrupt, 16 KB of work RAM,
+  and a 4 KB cache in front of the 68000 program. The program and the 4 MB
+  sample ROM live in SDRAM, in the part of the banked-ROM area Brave Blade never
+  uses, so a 32 MB module is still enough.
+- **YMF271:** a new sequential implementation. The core clock is exactly twice
+  the chip's clock, so each 44.1 kHz sample has a fixed budget of 768 clocks.
+  In that time the engine walks all 12 channel groups, with a single shared
+  multiplier. The PlayStation core already uses nearly all of the FPGA's
+  multiplier blocks. PCM voices prefetch their sample data from SDRAM ahead of
+  time so playback never waits on memory.
+- **Integration:** the PSX bus decode for the two command addresses, a 16-byte
+  read mode and a fairness rule on the SDRAM port the sound board shares, and
+  an output mixer. It keeps MAME's balance between the PlayStation SPU (sound
+  effects) and the YMF271 (music), 0.35 : 1.0, with +6 dB overall headroom.
+  The sound board only switches on when the MRA supplies its ROMs.
+
+### 4. Verification
+
+- **YMF271 hardware vs. the fixed-point model:** bit-identical over the full
+  150-second capture (6.6 million stereo samples), including with deliberately
+  slow memory. The worst case uses 584 of the 768 clocks per sample.
+- **Whole sound board, running the real Brave Blade sound program** in a
+  Verilator simulation, with the game's commands injected at the times MAME
+  recorded, over 120 seconds:
+  - it made 177,684 YMF271 register writes against MAME's 177,696;
+  - after each of the 23 commands the write counts match MAME;
+  - output loudness matches within 1–4 %.
+- **FPGA build:** fits the Cyclone V at 97 % logic. All core clocks meet timing
+  in every temperature/voltage corner. The small HDMI/video timing margins
+  already present in the upstream core are equal or better.
+- **Hardware:** Brave Blade (World) tested on MiSTer with the released core: music and sound effects both working.
+
+Details, numbers and reproduction steps are in
+[`source/rtl/raizing_snd/README.md`](source/rtl/raizing_snd/README.md) and
+[`source/sim/README.md`](source/sim/README.md).
+
+## Known limitations
+
+- **Save states do not include the sound board.** After loading a save state,
+  the music may be wrong until the game issues its next music command.
+- **Song start timing** can differ from MAME by one tempo tick (8 ms). The
+  sound program services its timers by polling, and when it is busy two ticks
+  can merge. The tempo itself is unaffected.
+- **Unused YMF271 features are not implemented** (they are also missing or
+  incomplete in MAME): PFM, detune, alternate loop, "Acc On", external outputs,
+  and reading back external memory. LFO pitch modulation uses a close linear
+  approximation. Brave Blade uses none of these.
+- The OSD still shows the upstream core name.
+
+## Building
+
+Open `source/ZN1.qpf` in **Quartus Prime 17.0** (Lite is sufficient) and
+compile. The output is `source/output_files/ZN1.rbf`; rename it to
+`BraveBlade_<date>.rbf` for the MRAs. The JTAG debug probes from upstream are
+excluded by default and can be re-enabled with the Verilog macro
+`ZN_JTAG_DEBUG`.
+
+## Credits
+
+- **XelaNotPu** — the [ZN-1 MiSTer core](https://github.com/XelaNotPu/ZN1_MiSTer)
+  this fork is based on: ZN-1 board support, per-manufacturer boot ROMs, CAT702
+  security, ROM banking, NVRAM/EEPROM/FRAM, rotation and pause overlay.
+- **Robert Peip (FPGAzumSpass)** — [PSX_MiSTer](https://github.com/MiSTer-devel/PSX_MiSTer),
+  which provides the CPU, GPU, GTE, SPU, DMA and memory subsystem.
+- **The MiSTer project** and **Sorgelig** — the MiSTer framework and the SDRAM
+  controller.
+- **Jorge Cwik** — [fx68k](https://github.com/ijor/fx68k), the 68000 core used
+  for the sound CPU.
+- **The MAME team**, in particular the authors of `ymf271.cpp` (R. Belmont,
+  Olivier Galibert, hap) and the ZN driver: the behavioural reference for the
+  sound board and the YMF271.
 
 ## No copyrighted data
 
-This release contains **no game ROMs and no copyrighted game data**:
+This repository contains **no game ROMs and no copyrighted game data**:
 
 - The core bitstream embeds no boot ROM, no game data, and no captured NVRAM.
-  Manufacturer boot ROMs are loaded at runtime from their `coh*.zip`; EEPROM/FRAM
-  initialise blank and self-configure.
+  Manufacturer boot ROMs and the sound-board ROMs are loaded at runtime from
+  your ROM zips. EEPROM/FRAM initialise blank and self-configure, or are
+  preloaded from your own ROM zips by the MRA.
 - The `.mra` files reference romsets by name only — they contain no inline ROM
   data.
 - The `source/` tree contains the original FPGA logic, the standard PSX_MiSTer
-  base RTL, hardware algorithm tables (CAT702), and the author's own
-  pause-overlay artwork — no game/BIOS/firmware images.
+  base RTL, hardware algorithm tables (CAT702), the fx68k 68000 core and its
+  microcode, YMF271 lookup tables computed from published formulas, and the
+  original author's pause-overlay artwork — no game/BIOS/firmware images.
 
 ## License
 
@@ -195,6 +219,13 @@ This core derives from **PSX_MiSTer** by Robert Peip (FPGAzumSpass) and the
 CAT702 security, ROM banking, NVRAM/EEPROM/FRAM) is an independent
 re-implementation developed with reference to the MAME project's hardware
 documentation.
+
+The 68000 core **fx68k** is Copyright (c) Jorge Cwik, GPLv3-or-later
+(`source/rtl/fx68k/LICENSE`, imported unchanged; see `ORIGIN.md`). The Raizing
+sound board and YMF271 RTL are an independent re-implementation written with
+reference to MAME's behaviour. The standalone MAME YMF271 port used only for
+verification (`source/sim/model/ymf_mame.h`) retains its BSD-3-Clause
+attribution to its original authors.
 
 ## Legal
 
@@ -212,7 +243,7 @@ Trademarks. "Sony", "PlayStation", "ZN-1", and "ZN-2" are trademarks of Sony Int
 - **Namco** (Bandai Namco Entertainment Inc.), whose System 11 / System 12 arcade boards share the same Sony ZN chassis
 - **Acclaim Entertainment**, **Atari Games / Midway**, **Hudson Soft**, **Sunsoft (Sun Corporation)**, and other publishers and rights holders of ZN-1 titles
 
-Game titles referenced in this release — including Dead or Alive, 1 on 1 Government, Gallop Racer, Monster Farm Jump, Tecmo World Cup, Flame Gunner, The Block Kuzushi and Tondemo Crisis (Tecmo); G-Darius, RayStorm, Psychic Force, Fighters' Impact, Super Football Champ and Magical Date (Taito); Aero Fighters / Sonic Wings (Video System); Brave Blade and Bloody Roar (Eighting/Raizing); Heaven's Gate (Atlus); and Shanghai Matekibuyuu (Sunsoft) — are trademarks of their respective owners.
+"Yamaha" and "YMF271" are trademarks of Yamaha Corporation; "Motorola" and "68000" refer to Motorola / NXP Semiconductors. Game titles referenced in this repository — including Brave Blade (Eighting/Raizing) — are trademarks of their respective owners.
 
 This project is not affiliated with, endorsed by, or sponsored by Sony Interactive Entertainment or any of the companies or rights holders named above. All such names are used here in a purely nominative and descriptive manner, solely to identify the hardware and software being re-implemented or referenced.
 
