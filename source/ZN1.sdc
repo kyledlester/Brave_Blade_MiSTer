@@ -18,3 +18,9 @@ set_false_path -from {emu|pll2|pll2_inst|altera_pll_i|cyclonev_pll|counter[0].ou
 # Raizing sound board: the 128-bit SDRAM channel-3 read line (clk_3x) is only sampled by the
 # sound board (clk_1x) after ch3_ready, and it cannot change until the next request is issued.
 set_false_path -from [get_registers {*|sdram:sdram|ch3_dout128[*]}] -to [get_registers {*|raizing_snd:raizing_snd|*}]
+
+# Cheat-engine bus -> SDRAM channel-3 input buffers (clk_1x -> clk_3x). ch3buf_* are re-sampled
+# every clk_3x and only used by a request that is held for a whole clk_1x cycle, so capturing the
+# new value one clk_3x early is harmless; the cheat engine is never selected while the Raizing
+# sound board owns channel 3.
+set_false_path -hold -from [get_registers {*|cheats:icheats|*}] -to [get_registers {*|sdram:sdram|ch3buf_*}]

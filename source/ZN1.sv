@@ -1025,6 +1025,10 @@ end
 
 ////////////////////////////  SYSTEM  ///////////////////////////////////
 
+// PSX video before the loading-screen sync generator (see VIDEO section)
+wire       psx_hs, psx_vs, psx_hbl, psx_vbl, psx_ce_pix, psx_interlace;
+wire [7:0] psx_r, psx_g, psx_b;
+
 // Raizing sound board connections (instance below, after the PSX core)
 wire [15:0] spu_l, spu_r;
 wire        zn_snd_latch_wr, zn_snd_irq_wr;
@@ -1185,19 +1189,19 @@ psx
    .videoout_on     (~status[14]),
    .isPal           (isPal),
    .pal60           (status[15]),
-   .hsync           (hs),
-   .vsync           (vs),
-   .hblank          (hbl),
-   .vblank          (vbl),
+   .hsync           (psx_hs),
+   .vsync           (psx_vs),
+   .hblank          (psx_hbl),
+   .vblank          (psx_vbl),
    .DisplayWidth    (DisplayWidth),
    .DisplayHeight   (DisplayHeight),
    .DisplayOffsetX  (DisplayOffsetX),
    .DisplayOffsetY  (DisplayOffsetY),
-   .video_ce        (ce_pix),
-   .video_interlace (video_interlace),
-   .video_r         (r),
-   .video_g         (g),
-   .video_b         (b),
+   .video_ce        (psx_ce_pix),
+   .video_interlace (psx_interlace),
+   .video_r         (psx_r),
+   .video_g         (psx_g),
+   .video_b         (psx_b),
    .video_isPal     (video_isPal),
    .video_fbmode    (video_fbmode),
    .video_fb24      (video_fb24),
@@ -1724,12 +1728,46 @@ ddram_rotate_arb ddram_rotate_arb
 
 assign CLK_VIDEO = clk_vid;
 
-wire hs, vs, hbl, vbl, video_interlace, video_isPal, video_fbmode, video_fb24;
+// Loading-screen sync. The PSX core (and with it the GPU scan-out timing) is held in
+// reset for the whole ROM download, so the core produced no sync while MiSTer shows
+// its loading progress: fine on HDMI (the scaler makes its own timing) but a CRT had
+// nothing to lock to. While a download is in progress the video output comes from
+// this free-running generator instead: black 320x240, 3413 clk_vid per line and
+// 263 lines (the PSX NTSC 240p timing), so the OSD is visible on analog outputs.
+reg  [1:0] ld_sync;
+reg [11:0] ld_h;
+reg  [8:0] ld_v;
+reg  [2:0] ld_div;
+reg        ld_ce, ld_hs, ld_vs, ld_hbl, ld_vbl;
+always @(posedge clk_vid) begin
+	ld_sync <= {ld_sync[0], ioctl_download};
+	ld_div  <= ld_div + 1'd1;
+	ld_ce   <= (ld_div == 3'd0);
+	if (ld_h == 12'd3412) begin
+		ld_h <= 12'd0;
+		ld_v <= (ld_v == 9'd262) ? 9'd0 : ld_v + 1'd1;
+	end else ld_h <= ld_h + 1'd1;
+	ld_hs  <= (ld_h < 12'd252);
+	ld_hbl <= (ld_h < 12'd608) || (ld_h >= 12'd3168);   // 2560 clk = 320 px active
+	ld_vbl <= (ld_v >= 9'd240);
+	ld_vs  <= (ld_v >= 9'd244) && (ld_v < 9'd247);
+end
+wire ld_active = ld_sync[1];
+
+wire hs              = ld_active ? ld_hs  : psx_hs;
+wire vs              = ld_active ? ld_vs  : psx_vs;
+wire hbl             = ld_active ? ld_hbl : psx_hbl;
+wire vbl             = ld_active ? ld_vbl : psx_vbl;
+wire ce_pix          = ld_active ? ld_ce  : psx_ce_pix;
+wire video_interlace = ld_active ? 1'b0   : psx_interlace;
+wire [7:0] r         = ld_active ? 8'd0   : psx_r;
+wire [7:0] g         = ld_active ? 8'd0   : psx_g;
+wire [7:0] b         = ld_active ? 8'd0   : psx_b;
+
+wire video_isPal, video_fbmode, video_fb24;
 
 wire [2:0] video_hResMode;
 
-wire ce_pix;
-wire [7:0] r,g,b;
 wire [6:0] zn_debug_out;  // DIAGNOSTIC build #17: verify Y-wrap fix. See psx_top.vhd.
 wire [31:0] zn_debug_val; // build #50: raw 32-bit SDRAM word latched at green anchor 0x1F644810
 wire [31:0] zn_debug_addr; // build #51: computed SDRAM byte address latched at green anchor (expect 0x00E44810)

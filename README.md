@@ -17,7 +17,8 @@ Robert Peip's PSX_MiSTer core. See [Credits](#credits). Next steps are to test a
 ```
 Brave_Blade_MiSTer/
 ├── Releases/
-│   └── BraveBlade_20260930.rbf        ← the core
+│   ├── BraveBlade_20261001.rbf        ← the core (latest)
+│   └── BraveBlade_20260930.rbf        ← previous core
 ├── MRA/
 │   ├── Brave Blade (World) (with music).mra
 │   ├── Brave Blade (USA) (with music).mra
@@ -31,7 +32,7 @@ upstream [ZN1_MiSTer](https://github.com/XelaNotPu/ZN1_MiSTer) core.
 
 ## Installation
 
-1. Copy `Releases/BraveBlade_20260930.rbf` to `_Arcade/cores/` on your MiSTer
+1. Copy `Releases/BraveBlade_20261001.rbf` to `_Arcade/cores/` on your MiSTer
    SD card.
 2. Copy the `.mra` files from `MRA/` to `_Arcade/` (or any folder under it).
 3. Put your ROM zips in the MiSTer arcade ROM folder (`games/mame/` or
@@ -63,7 +64,7 @@ only in a small region EEPROM, which the regional MRAs load.
 
 | MRA | Status |
 |---|---|
-| Brave Blade (World) (with music) | Tested on MiSTer hardware with `BraveBlade_20260930.rbf`: music and sound effects |
+| Brave Blade (World) (with music) | Tested on MiSTer hardware with `BraveBlade_20260930.rbf`: music and sound effects. `BraveBlade_20261001.rbf` (loading screen on CRT, timing improvements) not yet hardware-tested |
 | Brave Blade (USA / Japan / Asia) (with music) | Not yet tested on hardware (same core and ROMs as World, plus the region EEPROM) |
 
 ## How the music was added

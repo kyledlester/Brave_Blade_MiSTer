@@ -555,6 +555,7 @@ ARCHITECTURE rtl OF ascal IS
 	SIGNAL o_divstart : std_logic;
 	SIGNAL o_divrun : std_logic;
 	SIGNAL o_hacpt,o_vacpt : unsigned(11 DOWNTO 0);
+	SIGNAL o_vacpt_m1 : unsigned(11 DOWNTO 0); -- o_vacpt-1, kept in step with o_vacpt (timing)
 	SIGNAL o_vacptl : unsigned(1 DOWNTO 0);
 	signal o_newres : integer range 0 to 3;
 
@@ -1030,6 +1031,12 @@ ARCHITECTURE rtl OF ascal IS
 	SIGNAL o_poly_phase_b,o_poly_phase_b2,o_poly_phase_b3 : poly_phase_t;
 	SIGNAL o_v_poly_phase, o_v_poly_phase2, o_h_poly_phase, o_poly_phase, o_poly_phase1 : poly_phase_interp_t;
 	SIGNAL o_v_poly_pix, o_h_poly_pix, o_h_lum_pix, o_v_lum_pix : type_pix;
+	-- Vertical polyphase: tap sum registered in C11, bound (clamp) applied in C12.
+	-- Same latency as poly_final in C11; splits add and clamp across two clocks.
+	TYPE type_poly_s IS RECORD
+		r,g,b : unsigned(18 DOWNTO 0);
+	END RECORD;
+	SIGNAL o_v_poly_s : type_poly_s;
 	SIGNAL o_poly_lum, o_poly_lum1 : unsigned(7 DOWNTO 0);
 	SIGNAL o_poly_lerp_ta, o_poly_lerp_tb : signed(9 DOWNTO 0);
 	SIGNAL o_h_poly_t,o_h_poly_t2,o_v_poly_t   : type_poly_t;
@@ -1068,6 +1075,24 @@ ARCHITECTURE rtl OF ascal IS
 		t.b1:=(fi.t2 * signed('0' & p(2).b) +
 					 fi.t3 * signed('0' & p(3).b));
 		RETURN t;
+	END FUNCTION;
+
+	FUNCTION poly_sum(t : type_poly_t) RETURN type_poly_s IS
+		VARIABLE s : type_poly_s;
+	BEGIN
+		s.r:=unsigned(t.r0(26 DOWNTO 8)+t.r1(26 DOWNTO 8));
+		s.g:=unsigned(t.g0(26 DOWNTO 8)+t.g1(26 DOWNTO 8));
+		s.b:=unsigned(t.b0(26 DOWNTO 8)+t.b1(26 DOWNTO 8));
+		RETURN s;
+	END FUNCTION;
+
+	FUNCTION poly_bound(s : type_poly_s) RETURN type_pix IS
+		VARIABLE p : type_pix;
+	BEGIN
+		p.r:=bound(s.r,15);
+		p.g:=bound(s.g,15);
+		p.b:=bound(s.b,15);
+		RETURN p;
 	END FUNCTION;
 
 	FUNCTION poly_final(t : type_poly_t) RETURN type_pix IS
@@ -1154,6 +1179,8 @@ ARCHITECTURE rtl OF ascal IS
 		RETURN v;
 	END FUNCTION;
 BEGIN
+
+	o_v_poly_pix <= poly_bound(o_v_poly_s);  -- C12 clamp of the C11 polyphase sum
 
 	-----------------------------------------------------------------------------
 	i_reset_na<='0'   WHEN reset_na='0' ELSE '1' WHEN rising_edge(i_clk);
@@ -2087,12 +2114,14 @@ BEGIN
 						o_vacc     <=o_vacc_ini;
 						o_vacc_next<=o_vacc_ini + 2*o_ivsize;
 						o_vacpt <=x"001";
+						o_vacpt_m1 <=x"000";
 						o_vacptl<="01";
 						vcarry_v:=false;
 					END IF;
 
 					IF vcarry_v THEN
 						o_vacpt<=o_vacpt+1;
+						o_vacpt_m1<=o_vacpt;
 					END IF;
 					IF vcarry_v AND o_prim THEN
 						o_vacptl<=o_vacptl+1;
@@ -2157,7 +2186,7 @@ BEGIN
 					IF o_vacpt=0 OR o_rline='1' THEN
 						o_adrs_pre <= to_integer(o_vacpt) * to_integer(o_stride);
 					ELSE
-						o_adrs_pre <= (to_integer(o_vacpt)-1) * to_integer(o_stride);
+						o_adrs_pre <= to_integer(o_vacpt_m1) * to_integer(o_stride);
 					END IF;
 				ELSE
 					o_adrs_pre <= to_integer(o_vacpt(11 DOWNTO 1) & "0") * to_integer(o_stride);
@@ -2965,7 +2994,7 @@ BEGIN
 				o_v_poly_t<=poly_calc(o_v_poly_phase,o_vpixq);
 
 				-- C11 : Bound
-				o_v_poly_pix<=poly_final(o_v_poly_t);
+				o_v_poly_s<=poly_sum(o_v_poly_t);   -- bound applied in C12 (o_v_poly_pix)
 
 				-- CYCLE 12 -----------------------------------------
 				o_hs<=o_hsv(11);
