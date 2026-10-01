@@ -1038,6 +1038,9 @@ ARCHITECTURE rtl OF ascal IS
 	END RECORD;
 	SIGNAL o_v_poly_s : type_poly_s;
 	SIGNAL o_poly_lum, o_poly_lum1 : unsigned(7 DOWNTO 0);
+	-- Adaptive luma = max(R,G,B), split over the two existing stages (timing):
+	-- stage 1 registers max(R,G) and B, stage 2 (o_poly_lum1) takes the final max.
+	SIGNAL o_poly_lum_rg, o_poly_lum_b : unsigned(7 DOWNTO 0);
 	SIGNAL o_poly_lerp_ta, o_poly_lerp_tb : signed(9 DOWNTO 0);
 	SIGNAL o_h_poly_t,o_h_poly_t2,o_v_poly_t   : type_poly_t;
 
@@ -2424,10 +2427,12 @@ BEGIN
 			END IF;
 
 			IF o_v_poly_use_adaptive='1' THEN
-				o_poly_lum<=poly_lum(o_v_lum_pix);
+				IF o_v_lum_pix.r > o_v_lum_pix.g THEN o_poly_lum_rg<=o_v_lum_pix.r; ELSE o_poly_lum_rg<=o_v_lum_pix.g; END IF;
+				o_poly_lum_b<=o_v_lum_pix.b;
 				o_a_poly_addr<=o_v_poly_addr;
 			ELSIF o_h_poly_use_adaptive='1' THEN
-				o_poly_lum<=poly_lum(o_h_lum_pix);
+				IF o_h_lum_pix.r > o_h_lum_pix.g THEN o_poly_lum_rg<=o_h_lum_pix.r; ELSE o_poly_lum_rg<=o_h_lum_pix.g; END IF;
+				o_poly_lum_b<=o_h_lum_pix.b;
 				o_a_poly_addr<=to_integer(hfrac3_v);
 			END IF;
 
@@ -2442,7 +2447,8 @@ BEGIN
 
 			o_h_poly_phase_a2<=o_h_poly_phase_a;
 			o_v_poly_phase_a2<=o_v_poly_phase_a;
-			o_poly_lum1<=o_poly_lum;
+			-- = poly_lum() of the pixel latched one clock earlier (max of R,G,B)
+			IF o_poly_lum_b > o_poly_lum_rg THEN o_poly_lum1<=o_poly_lum_b; ELSE o_poly_lum1<=o_poly_lum_rg; END IF;
 
 			-- C5 / HC5 / VC6
 			o_poly_lerp_ta<=signed(to_unsigned(256,10) - resize(o_poly_lum1,10));

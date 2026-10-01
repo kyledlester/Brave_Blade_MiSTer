@@ -1732,8 +1732,12 @@ assign CLK_VIDEO = clk_vid;
 // reset for the whole ROM download, so the core produced no sync while MiSTer shows
 // its loading progress: fine on HDMI (the scaler makes its own timing) but a CRT had
 // nothing to lock to. While a download is in progress the video output comes from
-// this free-running generator instead: black 320x240, 3413 clk_vid per line and
-// 263 lines (the PSX NTSC 240p timing), so the OSD is visible on analog outputs.
+// this free-running generator instead: black 240p, 3413 clk_vid per line and 263
+// lines (the PSX NTSC line/frame rate), so the OSD is visible on analog outputs.
+// Horizontal timing is standard NTSC (4.7us sync, 4.7us back porch, 52.6us active,
+// 1.5us front porch) so MiSTer's OSD, which sizes and centres itself on the active
+// region, looks the same as on other cores. The pixel divider restarts every line
+// (3413 is not a multiple of 8) so the pixel grid is identical on every line.
 reg  [1:0] ld_sync;
 reg [11:0] ld_h;
 reg  [8:0] ld_v;
@@ -1741,14 +1745,14 @@ reg  [2:0] ld_div;
 reg        ld_ce, ld_hs, ld_vs, ld_hbl, ld_vbl;
 always @(posedge clk_vid) begin
 	ld_sync <= {ld_sync[0], ioctl_download};
-	ld_div  <= ld_div + 1'd1;
+	ld_div  <= (ld_h == 12'd3412) ? 3'd0 : ld_div + 1'd1;
 	ld_ce   <= (ld_div == 3'd0);
 	if (ld_h == 12'd3412) begin
 		ld_h <= 12'd0;
 		ld_v <= (ld_v == 9'd262) ? 9'd0 : ld_v + 1'd1;
 	end else ld_h <= ld_h + 1'd1;
-	ld_hs  <= (ld_h < 12'd252);
-	ld_hbl <= (ld_h < 12'd608) || (ld_h >= 12'd3168);   // 2560 clk = 320 px active
+	ld_hs  <= (ld_h < 12'd252);                           // 4.7 us
+	ld_hbl <= (ld_h < 12'd504) || (ld_h >= 12'd3328);     // active 52.6 us = 353 px
 	ld_vbl <= (ld_v >= 9'd240);
 	ld_vs  <= (ld_v >= 9'd244) && (ld_v < 9'd247);
 end
