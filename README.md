@@ -17,9 +17,7 @@ Robert Peip's PSX_MiSTer core. See [Credits](#credits). Next steps are to test a
 ```
 Brave_Blade_MiSTer/
 ├── Releases/
-│   ├── BraveBlade_20261002.rbf        ← the core (latest)
-│   ├── BraveBlade_20261001.rbf        ← previous cores
-│   └── BraveBlade_20260930.rbf
+│   └── BraveBlade_20261002.rbf        ← the core
 ├── MRA/
 │   ├── Brave Blade (World) (with music).mra
 │   ├── Brave Blade (USA) (with music).mra
@@ -65,7 +63,7 @@ only in a small region EEPROM, which the regional MRAs load.
 
 | MRA | Status |
 |---|---|
-| Brave Blade (World) (with music) | Music and sound effects tested on MiSTer hardware (`20260930`, `20261001`). `20261002` adds the CRT loading-screen fix below |
+| Brave Blade (World) (with music) | Tested on MiSTer hardware with `BraveBlade_20261002.rbf`: music, sound effects, and the loading screen on CRT |
 | Brave Blade (USA / Japan / Asia) (with music) | Not yet tested on hardware (same core and ROMs as World, plus the region EEPROM) |
 
 ## Release notes
@@ -73,8 +71,8 @@ only in a small region EEPROM, which the regional MRAs load.
 | Core | Changes |
 |---|---|
 | `BraveBlade_20261002.rbf` | **CRT loading screen:** MiSTer's loading screen now shows correctly on analog/CRT outputs while the ROMs load — full-size, centred and stable. The core used to output no video sync during ROM loading (only HDMI showed the loading bar); it now outputs a standard 15 kHz NTSC signal until the game starts. **Timing:** further FPGA timing work on the MiSTer HDMI scaler (adaptive-filter luma path). |
-| `BraveBlade_20261001.rbf` | First CRT loading-screen fix (shown, but undersized and shaky on CRT). **Timing closure:** the failing timing paths were grouped and fixed in the HDMI scaler (polyphase filter, read address) and the pause overlay; all core clocks meet timing. |
-| `BraveBlade_20260930.rbf` | First release: Brave Blade music (68000 + YMF271 sound board). |
+| `20261001` (superseded) | First CRT loading-screen fix (shown, but undersized and shaky on CRT). **Timing closure:** the failing timing paths were grouped and fixed in the HDMI scaler (polyphase filter, read address) and the pause overlay; all core clocks meet timing. |
+| `20260930` (superseded) | First release: Brave Blade music (68000 + YMF271 sound board). |
 
 FPGA timing note: the core logic and the new sound board meet timing in every
 corner. The remaining small margins (tenths of a nanosecond or less) are in
