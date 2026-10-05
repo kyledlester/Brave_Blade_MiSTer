@@ -20,9 +20,11 @@ Brave_Blade_MiSTer/
 │   └── BraveBlade_20261002.rbf        ← the core
 ├── MRA/
 │   ├── Brave Blade (World) (with music).mra
-│   ├── Brave Blade (USA) (with music).mra
-│   ├── Brave Blade (Japan) (with music).mra
-│   └── Brave Blade (Asia) (with music).mra
+│   └── _alternatives/
+│       └── _Brave Blade/
+│           ├── Brave Blade (USA) (with music).mra
+│           ├── Brave Blade (Japan) (with music).mra
+│           └── Brave Blade (Asia) (with music).mra
 └── source/                            ← full core source and Quartus project
 ```
 
@@ -33,7 +35,8 @@ upstream [ZN1_MiSTer](https://github.com/XelaNotPu/ZN1_MiSTer) core.
 
 1. Copy `Releases/BraveBlade_20261002.rbf` to `_Arcade/cores/` on your MiSTer
    SD card.
-2. Copy the `.mra` files from `MRA/` to `_Arcade/` (or any folder under it).
+2. Copy the contents of `MRA/` to `_Arcade/`: the World MRA goes directly in
+   `_Arcade/`, and the regional MRAs go in `_Arcade/_alternatives/_Brave Blade/`.
 3. Put your ROM zips in the MiSTer arcade ROM folder (`games/mame/` or
    `_Arcade/mame/`).
 4. Pick **Brave Blade (World) (with music)** (or a regional version) from the arcade menu.
